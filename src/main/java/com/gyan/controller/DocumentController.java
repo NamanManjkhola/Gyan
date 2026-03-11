@@ -35,7 +35,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<Resource> downloadDocument(@PathVariable Long id) {
+    public ResponseEntity<StreamingResponseBody> downloadDocument(@PathVariable Long id) {
         Resource resource = documentService.downloadDocument(id);
 
         StreamingResponseBody stream = outputStream -> {
@@ -54,7 +54,7 @@ public class DocumentController {
 
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
-            .body(resource);
+            .body(stream);
     }
 
     @GetMapping

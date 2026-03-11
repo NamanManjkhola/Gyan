@@ -14,6 +14,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.gyan.dto.DocumentResponseDTO;
 import com.gyan.entity.Document;
 import com.gyan.entity.User;
+import com.gyan.event.DocumentUploadedEvent;
+import com.gyan.producer.DocumentEventProducer;
 import com.gyan.repository.DocumentRepository;
 import com.gyan.repository.UserRepository;
 import com.gyan.storage.StorageService;
@@ -26,6 +28,7 @@ public class DocumentService {
     private final StorageService storageService;
     private final DocumentProcessingService documentProcessingService;  
     private final FileValidator fileValidator;
+    private final DocumentEventProducer documentEventProducer;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -35,13 +38,14 @@ public class DocumentService {
             ,StorageService storageService
             ,UserRepository userRepository
             ,DocumentProcessingService documentProcessingService
-            ,FileValidator fileValidator) {
+            ,FileValidator fileValidator, DocumentEventProducer documentEventProducer) {
 
         this.documentRepository = documentRepository;
         this.storageService = storageService;
         this.userRepository = userRepository;
         this.documentProcessingService = documentProcessingService;
         this.fileValidator = fileValidator;
+        this.documentEventProducer = documentEventProducer; 
     }
 
     public DocumentResponseDTO uploadFile(MultipartFile file) throws IOException {
@@ -71,7 +75,16 @@ public class DocumentService {
 
         Document saved = documentRepository.save(document);
 
-        documentProcessingService.processDocument(saved.getFilePath());
+        // documentProcessingService.processDocument(saved.getFilePath());
+
+        DocumentUploadedEvent event = new DocumentUploadedEvent(
+            document.getId(),
+            document.getFilePath(),
+            document.getFileType(),
+            user.getId()
+        );
+
+        documentEventProducer.publishDocumentUploaded(event);
 
         return mapToDTO(saved);
     }
