@@ -2,7 +2,7 @@ package com.gyan.entity;
 
 import java.time.LocalDateTime;
 
-
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -22,12 +22,23 @@ public class Document {
     @JoinColumn(name = "user_id")
     private User user;
 
+    public String getExtractedText() {
+        return extractedText;
+    }
+
+    public void setExtractedText(String extractedText) {
+        this.extractedText = extractedText;
+    }
+
     private String filename;
     private String storedFileName;
     private String fileType;
     private Long fileSize;
     private String filePath;
     private LocalDateTime uploadedAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String extractedText;
 
     public Long getId() {
         return id;
