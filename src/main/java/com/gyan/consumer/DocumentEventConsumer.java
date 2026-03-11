@@ -19,6 +19,7 @@ public class DocumentEventConsumer {
         processingService.processDocument(
             event.getDocumentId(),
             event.getFilePath(),
-            event.getFileType(),;
-    };
+            event.getFileType()
+        );
+    }
 }
