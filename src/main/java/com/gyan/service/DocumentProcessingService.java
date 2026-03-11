@@ -4,16 +4,22 @@ import org.springframework.stereotype.Service;
 import com.gyan.entity.Document;
 import com.gyan.processing.DocumentTextExtractionService;
 import com.gyan.repository.DocumentRepository;
+import com.gyan.search.DocumentIndex;
 
 @Service
 public class DocumentProcessingService {
 
     private final DocumentRepository documentRepository;
     private final DocumentTextExtractionService ExtractionService;
+    private final DocumentIndexService indexService;
 
-    public DocumentProcessingService(DocumentRepository documentRepository, DocumentTextExtractionService ExtractionService) {
+    public DocumentProcessingService(DocumentRepository documentRepository, 
+        DocumentTextExtractionService ExtractionService, 
+        DocumentIndexService indexService) {
+
         this.documentRepository = documentRepository;
         this.ExtractionService = ExtractionService;
+        this.indexService = indexService;
     }
     
     public void processDocument(Long documentId, String filePath, String fileType) {
@@ -28,9 +34,11 @@ public class DocumentProcessingService {
         document.setExtractedText(extractedText);
 
         documentRepository.save(document);
-
         
-        System.out.println("Text extraction completed for document " + documentId);
+        //build search index representation
+        DocumentIndex index = indexService.buildIndex(document);     
+        
+        System.out.println("Index prepared for document " + index.getDocumentId());
 
 
         
