@@ -1,6 +1,12 @@
 package com.gyan.search;
 
+import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.Document;
+
+
+@Document(indexName = "documents")
 public class DocumentIndex {
+    @Id
     private Long documentId;
     private String title;
     private String content;
