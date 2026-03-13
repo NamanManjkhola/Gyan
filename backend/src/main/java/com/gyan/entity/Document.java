@@ -12,7 +12,6 @@ import jakarta.persistence.ManyToOne;
 
 @Entity
 public class Document {
-    
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,13 +21,6 @@ public class Document {
     @JoinColumn(name = "user_id")
     private User user;
 
-    public String getExtractedText() {
-        return extractedText;
-    }
-
-    public void setExtractedText(String extractedText) {
-        this.extractedText = extractedText;
-    }
 
     private String filename;
     private String storedFileName;
@@ -39,6 +31,9 @@ public class Document {
 
     @Column(columnDefinition = "TEXT")
     private String extractedText;
+
+    @Column(columnDefinition = "TEXT")
+    private String embeddingVector;
 
     public Long getId() {
         return id;
@@ -99,6 +94,21 @@ public class Document {
     public void setUser(User user) {
         this.user = user;
     }
+    
+    public String getExtractedText() {
+        return extractedText;
+    }
 
+    public void setExtractedText(String extractedText) {
+        this.extractedText = extractedText;
+    }
+    
+    public String getEmbeddingVector() {
+        return embeddingVector;
+    }
+
+    public void setEmbeddingVector(String embeddingVector) {
+        this.embeddingVector = embeddingVector;
+    }
 
 }

@@ -3,6 +3,7 @@ package com.gyan.consumer;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.gyan.event.DocumentUploadedEvent;
 import com.gyan.service.DocumentProcessingService;
 
@@ -15,7 +16,7 @@ public class DocumentEventConsumer {
     }
 
     @KafkaListener(topics = "document-uploaded", groupId = "document-workers")
-    public void consume(DocumentUploadedEvent event) {
+    public void consume(DocumentUploadedEvent event) throws JsonProcessingException {
         processingService.processDocument(
             event.getDocumentId(),
             event.getFilePath(),
