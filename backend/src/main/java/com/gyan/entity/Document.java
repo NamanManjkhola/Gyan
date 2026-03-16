@@ -34,6 +34,7 @@ public class Document {
 
     @Column(columnDefinition = "TEXT")
     private String embeddingVector;
+    
 
     public Long getId() {
         return id;
