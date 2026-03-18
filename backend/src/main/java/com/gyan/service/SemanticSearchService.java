@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +19,7 @@ import com.gyan.util.VectorSimilarityUtil;
 public class SemanticSearchService {
     private final DocumentChunkRepository documentChunkRepository;
     private final EmbeddingService embeddingService;
+    private static final Logger log = LoggerFactory.getLogger(SemanticSearchService.class);
 
     public SemanticSearchService(DocumentChunkRepository documentChunkRepository, EmbeddingService embeddingService) {
         this.documentChunkRepository = documentChunkRepository;
@@ -24,6 +27,7 @@ public class SemanticSearchService {
     }
 
     public List<Document> semanticSearch(String query) throws Exception {
+        log.info("Semantic search started for query : " + query);
         List<Double> queryEmbedding = embeddingService.generateEmbedding(query);
         List<DocumentChunk> chunks = documentChunkRepository.findAll();
 
@@ -52,6 +56,8 @@ public class SemanticSearchService {
                                 entry.getKey().getDocument())
                         .distinct()
                         .toList();
+
+        log.info("Top chunks retrieved : " + result.size());
 
         return result;
     }

@@ -1,6 +1,8 @@
 package com.gyan.service;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,6 +25,7 @@ public class DocumentProcessingService {
     private final SearchIndexService searchIndexService;
     private final EmbeddingService embeddingService;
     private final DocumentChunkRepository documentChunkRepository;
+    private static final Logger log = LoggerFactory.getLogger(DocumentProcessingService.class);
 
     public DocumentProcessingService(DocumentRepository documentRepository, 
         DocumentTextExtractionService ExtractionService, 
@@ -40,9 +43,11 @@ public class DocumentProcessingService {
     
     public void processDocument(Long documentId, String filePath, String fileType) throws JsonProcessingException {
 
-        System.out.println("Processing document " + documentId + " of type " + fileType);
+        log.info("Processing document " + documentId + " of type " + fileType);
 
         String extractedText = ExtractionService.extractText(filePath);
+
+        log.debug("extracted text length : " + extractedText.length());
 
         Document document = documentRepository.findById(documentId)
                     .orElseThrow();
@@ -51,6 +56,8 @@ public class DocumentProcessingService {
 
         // generate embedding
         List<String> chunks = TextChunker.chunkText(extractedText, 500);
+
+        log.info("total chunks created : " + chunks.size());
         
         for(String chunk: chunks) {
             List<Double> embedding = embeddingService.generateEmbedding(chunk);
@@ -72,7 +79,7 @@ public class DocumentProcessingService {
         DocumentIndex index = indexService.buildIndex(document);
         searchIndexService.indexDocument(index);
         
-        System.out.println("Index prepared for document " + index.getDocumentId());
+        log.info("Index prepared for document " + index.getDocumentId());
 
 
         
