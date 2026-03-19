@@ -20,7 +20,7 @@ import com.gyan.util.TextChunker;
 public class DocumentProcessingService {
 
     private final DocumentRepository documentRepository;
-    private final DocumentTextExtractionService ExtractionService;
+    private final DocumentTextExtractionService extractionService;
     private final DocumentIndexService indexService;
     private final SearchIndexService searchIndexService;
     private final EmbeddingService embeddingService;
@@ -28,13 +28,13 @@ public class DocumentProcessingService {
     private static final Logger log = LoggerFactory.getLogger(DocumentProcessingService.class);
 
     public DocumentProcessingService(DocumentRepository documentRepository, 
-        DocumentTextExtractionService ExtractionService, 
+        DocumentTextExtractionService extractionService, 
         DocumentIndexService indexService,
         SearchIndexService searchIndexService,
         EmbeddingService embeddingService, DocumentChunkRepository documentChunkRepository) {
 
         this.documentRepository = documentRepository;
-        this.ExtractionService = ExtractionService;
+        this.extractionService = extractionService;
         this.indexService = indexService;
         this.searchIndexService = searchIndexService;
         this.embeddingService = embeddingService;
@@ -43,21 +43,31 @@ public class DocumentProcessingService {
     
     public void processDocument(Long documentId, String filePath, String fileType) throws JsonProcessingException {
 
+        System.out.println("STEP 1");
         log.info("Processing document " + documentId + " of type " + fileType);
 
-        String extractedText = ExtractionService.extractText(filePath);
+        String extractedText = extractionService.extractText(filePath);
+
+        System.out.println("STEP 2");
 
         log.debug("extracted text length : " + extractedText.length());
 
         Document document = documentRepository.findById(documentId)
                     .orElseThrow();
 
+        
+        System.out.println("STEP 3");
         document.setExtractedText(extractedText);
+        System.out.println("STEP 4 BEFORE SAVE");
+        documentRepository.save(document);
+        System.out.println("STEP 5 AFTER SAVE");
 
         // generate embedding
         List<String> chunks = TextChunker.chunkText(extractedText, 500);
 
         log.info("total chunks created : " + chunks.size());
+        
+
         
         for(String chunk: chunks) {
             List<Double> embedding = embeddingService.generateEmbedding(chunk);
@@ -73,8 +83,6 @@ public class DocumentProcessingService {
 
             
         }
-
-        documentRepository.save(document);
         
         DocumentIndex index = indexService.buildIndex(document);
         searchIndexService.indexDocument(index);
