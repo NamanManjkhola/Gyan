@@ -17,6 +17,10 @@ public class Document {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
