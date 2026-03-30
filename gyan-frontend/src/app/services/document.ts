@@ -1,7 +1,9 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 
-@Injectable({ providedIn: 'root' })
+@Injectable({
+  providedIn: 'root'
+})
 export class DocumentService {
 
   private baseUrl = 'http://localhost:8080/documents';
@@ -10,19 +12,5 @@ export class DocumentService {
 
   getDocuments() {
     return this.http.get(this.baseUrl);
-  }
-
-  upload(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post(`${this.baseUrl}/upload`, formData);
-  }
-
-  search(query: string) {
-    return this.http.get(`${this.baseUrl}/search?q=${query}`);
-  }
-
-  ask(question: string) {
-    return this.http.post('http://localhost:8080/ask', { question });
   }
 }

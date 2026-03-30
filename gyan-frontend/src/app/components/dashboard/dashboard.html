@@ -1,1 +1,13 @@
-<p>dashboard works!</p>
+<div style="max-width: 800px; margin: auto; padding: 20px;">
+  
+  <button mat-raised-button color="warn" (click)="logout()">
+    Logout
+  </button>
+
+  <h2>Your Documents</h2>
+
+  <mat-card *ngFor="let doc of documents" style="margin-bottom: 10px;">
+    <p>{{ doc.filename }}</p>
+  </mat-card>
+
+</div>

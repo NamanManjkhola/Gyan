@@ -2,9 +2,11 @@ package com.gyan.service;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.gyan.dto.AuthResponse;
 import com.gyan.dto.LoginRequestDTO;
 import com.gyan.dto.UserRequestDTO;
 import com.gyan.dto.UserResponseDTO;
@@ -39,7 +41,7 @@ public class UserService {
         );
     }
 
-    public String login(LoginRequestDTO request) {
+    public ResponseEntity<AuthResponse> login(LoginRequestDTO request) {
         User user = userRepository.findByEmail(request.getEmail())
                     .orElseThrow();
 
@@ -52,7 +54,9 @@ public class UserService {
             throw new RuntimeException("Invalid credentials");
         }
 
-        return JwtUtil.generateToken(user.getEmail(), user.getRole());
+        String jwtToken = JwtUtil.generateToken(user.getEmail(), user.getRole());
+
+        return ResponseEntity.ok(new AuthResponse(jwtToken));
     }
 
     public List<UserResponseDTO> getAllUsers() {

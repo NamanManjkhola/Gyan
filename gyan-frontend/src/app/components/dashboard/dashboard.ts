@@ -1,17 +1,36 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { DocumentService } from '../../services/document';
+import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [],
+  standalone: true,
+  imports: [CommonModule, MatButtonModule, MatCardModule],
   templateUrl: './dashboard.html',
-  styleUrl: './dashboard.scss',
 })
-export class Dashboard {
-    documents: any;
-  documentService: any;
-    ngOnInit() {
-      this.documentService.getDocuments().subscribe((data: any) => {
-      this.documents = data;
+export class DashboardComponent implements OnInit {
+
+  documents: any[] = [];
+
+  constructor(private documentService: DocumentService, private router: Router) {}
+
+  ngOnInit() {
+    this.documentService.getDocuments().subscribe({
+      next: (res: any) => {
+        console.log("DOCUMENTS", res);
+        this.documents = res.content || res; // handles pagination
+      },
+      error: (err) => {
+        console.error("ERROR FETCHING DOCS", err);
+      }
     });
-}
+  }
+
+  logout() {
+    localStorage.removeItem('token');
+    this.router.navigate(['/']);
+  }
 }

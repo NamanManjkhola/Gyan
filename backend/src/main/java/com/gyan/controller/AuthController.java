@@ -1,10 +1,12 @@
 package com.gyan.controller;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.gyan.dto.AuthResponse;
 import com.gyan.dto.LoginRequestDTO;
 import com.gyan.dto.UserRequestDTO;
 import com.gyan.dto.UserResponseDTO;
@@ -22,7 +24,7 @@ public class AuthController {
     }
     
     @PostMapping("/login")
-    public String login(@RequestBody LoginRequestDTO request) {
+    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequestDTO request) {
         return userService.login(request);
     }
 
