@@ -15,7 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(
-            HttpServletRequest request,
+            HttpServletRequest request, 
             HttpServletResponse response,
             FilterChain filterChain)
             throws ServletException, IOException{
