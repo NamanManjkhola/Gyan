@@ -9,4 +9,6 @@ public interface StorageService {
     String store(MultipartFile file) throws IOException;
 
     Resource load(String storedFileName);
+
+    void delete(String storedFileName);
 }

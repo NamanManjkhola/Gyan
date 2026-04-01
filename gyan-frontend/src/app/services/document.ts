@@ -13,4 +13,11 @@ export class DocumentService {
   getDocuments() {
     return this.http.get(this.baseUrl);
   }
+
+  uploadDocument(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.http.post('http://localhost:8080/documents/upload', formData);
+  }
 }

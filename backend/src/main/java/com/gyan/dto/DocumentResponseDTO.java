@@ -10,6 +10,7 @@ public class DocumentResponseDTO {
     private Long fileSize;
     private LocalDateTime uploadedAt;
     private String ownerEmail;
+    private Long chatId;
 
 
     public void setId(Long id) {
@@ -54,6 +55,12 @@ public class DocumentResponseDTO {
     }
     public void setOwnerEmail(String ownerEmail) {
         this.ownerEmail = ownerEmail;
+    }
+    public Long getChatId() {
+        return chatId;
+    }
+    public void setChatId(Long chatId) {
+        this.chatId = chatId;
     }
 
 }

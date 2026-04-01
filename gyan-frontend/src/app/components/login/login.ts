@@ -30,6 +30,8 @@ export class LoginComponent {
   ) {}
 
   login() {
+    console.log("EMAIL:", this.email);
+  console.log("PASSWORD:", this.password);
     this.authService.login({
       email: this.email,
       password: this.password

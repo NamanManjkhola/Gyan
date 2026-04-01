@@ -19,4 +19,9 @@ public class ElasticsearchSearchIndexService implements SearchIndexService {
         System.out.println("Document Index : " + documentIndex.getDocumentId());
 
     }
+
+    @Override
+    public void deleteDocument(Long documentId) {
+        repository.deleteById(documentId);
+    }
 }

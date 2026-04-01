@@ -23,14 +23,22 @@ public class QuestionAnswerService {
     public String askQuestion(String question) throws Exception {
         log.info("Generating answers for : " + question);
         List<DocumentChunk> chunks = semanticSearchService.findRelevantChunks((question));
+        return generateAnswer(question, chunks);
+    }
 
+    public String askQuestion(Long chatId, String question) throws Exception {
+        log.info("Generating answers for chat {} and question {}", chatId, question);
+        List<DocumentChunk> chunks = semanticSearchService.findRelevantChunks(chatId, question);
+        return generateAnswer(question, chunks);
+    }
+
+    private String generateAnswer(String question, List<DocumentChunk> chunks) throws Exception {
         StringBuilder context = new StringBuilder();
 
-        for(DocumentChunk chunk : chunks) {
+        for (DocumentChunk chunk : chunks) {
             context.append(chunk.getChunkText()).append("\n\n");
         }
 
         return llmService.generateAnswer(question, context.toString());
-
     }
 }

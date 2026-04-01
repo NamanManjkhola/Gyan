@@ -25,6 +25,9 @@ public class Document {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @ManyToOne
+    @JoinColumn(name = "chat_id")
+    private Chat chat;
 
     private String filename;
     private String storedFileName;
@@ -98,6 +101,14 @@ public class Document {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public Chat getChat() {
+        return chat;
+    }
+
+    public void setChat(Chat chat) {
+        this.chat = chat;
     }
     
     public String getExtractedText() {

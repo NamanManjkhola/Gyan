@@ -67,4 +67,18 @@ public class LocalStorageService implements StorageService {
 
         throw new RuntimeException("File not found");
     }
+
+    @Override
+    public void delete(String storedFileName) {
+        try {
+            Path filePath = Paths.get(uploadDir)
+                .toAbsolutePath()
+                .normalize()
+                .resolve(storedFileName);
+
+            Files.deleteIfExists(filePath);
+        } catch (IOException exception) {
+            throw new RuntimeException("Unable to delete file");
+        }
+    }
 }

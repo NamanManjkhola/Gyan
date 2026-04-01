@@ -13,13 +13,14 @@ import io.jsonwebtoken.security.Keys;
 
 public class JwtUtil {
     private static final SecretKey SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    private static final long ACCESS_TOKEN_TTL_MILLIS = 15 * 60 * 1000L;
     
     public static String generateToken(String email, Role role) {
         return Jwts.builder()
                 .setSubject(email)
                 .claim("role", role)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 86400000))
+                .setExpiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_TTL_MILLIS))
                 .signWith(SECRET_KEY)
                 .compact();
     }

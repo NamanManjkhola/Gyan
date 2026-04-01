@@ -9,4 +9,6 @@ import com.gyan.entity.DocumentChunk;
 
 public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Long> {
     List<DocumentChunk> findByDocument(Document document);
+
+    void deleteByDocument(Document document);
 }

@@ -7,26 +7,30 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.gyan.dto.DocumentResponseDTO;
+import com.gyan.entity.Chat;
 import com.gyan.entity.Document;
 import com.gyan.entity.User;
 import com.gyan.event.DocumentUploadedEvent;
 import com.gyan.producer.DocumentEventProducer;
 import com.gyan.repository.DocumentRepository;
-import com.gyan.repository.UserRepository;
+import com.gyan.repository.DocumentChunkRepository;
+import com.gyan.search.SearchIndexService;
 import com.gyan.storage.StorageService;
 import com.gyan.util.FileValidator;
 
 @Service
 public class DocumentService {
     private final DocumentRepository documentRepository;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
+    private final ChatService chatService;
+    private final DocumentChunkRepository documentChunkRepository;
+    private final SearchIndexService searchIndexService;
     private final StorageService storageService;
-    private final DocumentProcessingService documentProcessingService;  
     private final FileValidator fileValidator;
     private final DocumentEventProducer documentEventProducer;
 
@@ -36,29 +40,28 @@ public class DocumentService {
     public DocumentService(
             DocumentRepository documentRepository 
             ,StorageService storageService
-            ,UserRepository userRepository
-            ,DocumentProcessingService documentProcessingService
+            ,CurrentUserService currentUserService
+            ,ChatService chatService
+            ,DocumentChunkRepository documentChunkRepository
+            ,SearchIndexService searchIndexService
             ,FileValidator fileValidator, DocumentEventProducer documentEventProducer) {
 
         this.documentRepository = documentRepository;
         this.storageService = storageService;
-        this.userRepository = userRepository;
-        this.documentProcessingService = documentProcessingService;
+        this.currentUserService = currentUserService;
+        this.chatService = chatService;
+        this.documentChunkRepository = documentChunkRepository;
+        this.searchIndexService = searchIndexService;
         this.fileValidator = fileValidator;
         this.documentEventProducer = documentEventProducer; 
     }
 
-    public DocumentResponseDTO uploadFile(MultipartFile file) throws IOException {
+    public DocumentResponseDTO uploadFile(Long chatId, MultipartFile file) throws IOException {
 
         fileValidator.validate(file);
 
-        String email = SecurityContextHolder
-                .getContext()
-                .getAuthentication()
-                .getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow();
+        User user = currentUserService.getCurrentUser();
+        Chat chat = chatService.getOwnedChat(chatId);
                 
         String storedFileName = storageService.store(file);
 
@@ -72,8 +75,10 @@ public class DocumentService {
         document.setFilePath(uploadDir + "/" + storedFileName);
         document.setUploadedAt(LocalDateTime.now());
         document.setUser(user);
+        document.setChat(chat);
 
         Document saved = documentRepository.save(document);
+        chatService.touch(chat);
 
         // documentProcessingService.processDocument(saved.getFilePath());
 
@@ -90,18 +95,25 @@ public class DocumentService {
     }
 
     public Resource downloadDocument(Long id) {
+        return downloadDocument(null, id);
+    }
+
+    public Resource downloadDocument(Long chatId, Long id) {
 
         Document document = documentRepository  
                     .findById(id)
                     .orElseThrow(() -> new RuntimeException("Document Not Found"));
 
-        String email = SecurityContextHolder
-                .getContext()
-                .getAuthentication()
-                .getName();
+        User user = currentUserService.getCurrentUser();
         
-        if(!document.getUser().getEmail().equals(email)) {
-            throw new RuntimeException("Unauthorizad Access");
+        if(!document.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Unauthorized Access");
+        }
+
+        if (chatId != null) {
+            if (document.getChat() == null || !document.getChat().getId().equals(chatId)) {
+                throw new RuntimeException("Document does not belong to this chat");
+            }
         }
         
         
@@ -119,22 +131,24 @@ public class DocumentService {
         dto.setFilePath(document.getFilePath());
         dto.setUploadedAt(document.getUploadedAt());
         dto.setOwnerEmail(document.getUser().getEmail());
+        dto.setChatId(document.getChat() != null ? document.getChat().getId() : null);
 
         return dto;
     }
 
     public Page<DocumentResponseDTO> getDocuments(Pageable pageable) {
-        String email = SecurityContextHolder
-                .getContext()
-                .getAuthentication()    
-                .getName();
-        
-        User user = userRepository.findByEmail(email)
-                .orElseThrow();
+        User user = currentUserService.getCurrentUser();
         
         Page<Document> documents = documentRepository.findByUser(user, pageable);
 
         return documents.map(this::mapToDTO);
+    }
+
+    public Page<DocumentResponseDTO> getDocumentsByChat(Long chatId, Pageable pageable) {
+        Chat chat = chatService.getOwnedChat(chatId);
+
+        return documentRepository.findByChat(chat, pageable)
+            .map(this::mapToDTO);
     }
 
 
@@ -144,15 +158,62 @@ public class DocumentService {
                 .findById(id)
                 .orElseThrow(() -> new RuntimeException("Document Not Found"));
         
-        String email = SecurityContextHolder
-                    .getContext()
-                    .getAuthentication()    
-                    .getName();
+        User user = currentUserService.getCurrentUser();
 
-        if(!document.getUser().getEmail().equals(email)){
+        if(!document.getUser().getId().equals(user.getId())){
             throw new RuntimeException("Unauthorized Access");
         }
 
         return mapToDTO(document);
+    }
+
+    public DocumentResponseDTO getDocumentByChatAndId(Long chatId, Long id) {
+        Document document = documentRepository
+            .findById(id)
+            .orElseThrow(() -> new RuntimeException("Document Not Found"));
+
+        User user = currentUserService.getCurrentUser();
+
+        if (!document.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Unauthorized Access");
+        }
+
+        if (document.getChat() == null || !document.getChat().getId().equals(chatId)) {
+            throw new RuntimeException("Document does not belong to this chat");
+        }
+
+        return mapToDTO(document);
+    }
+
+    @Transactional
+    public void deleteDocumentByChatAndId(Long chatId, Long id) {
+        Document document = documentRepository
+            .findById(id)
+            .orElseThrow(() -> new RuntimeException("Document Not Found"));
+
+        User user = currentUserService.getCurrentUser();
+
+        if (!document.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Unauthorized Access");
+        }
+
+        if (document.getChat() == null || !document.getChat().getId().equals(chatId)) {
+            throw new RuntimeException("Document does not belong to this chat");
+        }
+
+        deleteDocumentResources(document);
+        chatService.touch(document.getChat());
+    }
+
+    @Transactional
+    public void deleteDocumentResources(Document document) {
+        documentChunkRepository.deleteByDocument(document);
+        searchIndexService.deleteDocument(document.getId());
+
+        if (document.getStoredFileName() != null && !document.getStoredFileName().isBlank()) {
+            storageService.delete(document.getStoredFileName());
+        }
+
+        documentRepository.delete(document);
     }
 }
