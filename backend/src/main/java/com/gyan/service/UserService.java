@@ -12,6 +12,7 @@ import com.gyan.dto.LoginRequestDTO;
 import com.gyan.dto.UserRequestDTO;
 import com.gyan.dto.UserResponseDTO;
 import com.gyan.entity.User;
+import com.gyan.exception.BadRequestException;
 import com.gyan.model.Role;
 import com.gyan.repository.UserRepository;
 import com.gyan.security.JwtUtil;
@@ -21,18 +22,26 @@ public class UserService {
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
+    private final AuditLogService auditLogService;
 
     public UserService(
         UserRepository userRepository,
         BCryptPasswordEncoder passwordEncoder,
-        RefreshTokenService refreshTokenService
+        RefreshTokenService refreshTokenService,
+        AuditLogService auditLogService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenService = refreshTokenService;
+        this.auditLogService = auditLogService;
     }
 
     public UserResponseDTO createUser(UserRequestDTO request) { 
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            auditLogService.logAuth("auth.register", request.getEmail(), "FAILED");
+            throw new BadRequestException("An account with this email already exists.");
+        }
+
         String hashedPassword = passwordEncoder.encode(request.getPassword());
 
         User user = new User(
@@ -42,6 +51,7 @@ public class UserService {
         );
         
         User savedUser = userRepository.save(user);
+        auditLogService.logAuth("auth.register", savedUser.getEmail(), "SUCCESS");
         return new UserResponseDTO(
             savedUser.getId(),
             savedUser.getEmail()
@@ -51,7 +61,10 @@ public class UserService {
     @Transactional
     public ResponseEntity<AuthResponse> login(LoginRequestDTO request) {
         User user = userRepository.findByEmail(request.getEmail())
-                    .orElseThrow();
+                    .orElseThrow(() -> {
+                        auditLogService.logAuth("auth.login", request.getEmail(), "FAILED");
+                        return new BadRequestException("Invalid credentials");
+                    });
 
         boolean valid = passwordEncoder.matches(
             request.getPassword(),
@@ -59,12 +72,14 @@ public class UserService {
         );
 
         if(!valid) {
-            throw new RuntimeException("Invalid credentials");
+            auditLogService.logAuth("auth.login", user.getEmail(), "FAILED");
+            throw new BadRequestException("Invalid credentials");
         }
 
         refreshTokenService.revokeActiveTokens(user);
         String accessToken = JwtUtil.generateToken(user.getEmail(), user.getRole());
         String refreshToken = refreshTokenService.createRefreshToken(user);
+        auditLogService.logAuth("auth.login", user.getEmail(), "SUCCESS");
 
         return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken));
     }
@@ -77,12 +92,19 @@ public class UserService {
         refreshTokenService.revokeToken(refreshTokenValue);
         String accessToken = JwtUtil.generateToken(user.getEmail(), user.getRole());
         String refreshToken = refreshTokenService.createRefreshToken(user);
+        auditLogService.logAuth("auth.refresh", user.getEmail(), "SUCCESS");
 
         return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken));
     }
 
     @Transactional
     public ResponseEntity<Void> logout(String refreshTokenValue) {
+        try {
+            var token = refreshTokenService.validateRefreshToken(refreshTokenValue);
+            auditLogService.logAuth("auth.logout", token.getUser().getEmail(), "SUCCESS");
+        } catch (RuntimeException ignored) {
+            auditLogService.logAuth("auth.logout", "unknown", "FAILED");
+        }
         refreshTokenService.revokeToken(refreshTokenValue);
         return ResponseEntity.noContent().build();
     }

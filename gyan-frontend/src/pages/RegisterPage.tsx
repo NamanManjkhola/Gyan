@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useNotifications } from '../components/NotificationProvider';
 import { register } from '../lib/api';
 
 const STRONG_PASSWORD_RULE =
@@ -7,6 +8,7 @@ const STRONG_PASSWORD_RULE =
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const { notify } = useNotifications();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,9 +36,12 @@ export function RegisterPage() {
     try {
       const response = await register(email, password);
       setSuccess(`Account created for ${response.email}. You can log in now.`);
-      setTimeout(() => navigate('/'), 800);
+      notify('Account created successfully.', 'success');
+      setTimeout(() => navigate('/login'), 800);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create your account.');
+      const message = err instanceof Error ? err.message : 'Unable to create your account.';
+      setError(message);
+      notify(message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -105,7 +110,10 @@ export function RegisterPage() {
           </button>
 
           <p className="auth-link-row">
-            Already have an account? <Link to="/">Back to login</Link>
+            Already have an account? <Link to="/login">Back to login</Link>
+          </p>
+          <p className="auth-link-row">
+            <Link to="/">Back to home</Link>
           </p>
         </form>
       </section>

@@ -9,15 +9,20 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.gyan.dto.DocumentResponseDTO;
+import com.gyan.dto.NameUpdateRequestDTO;
 import com.gyan.service.DocumentService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/documents")
@@ -44,19 +49,33 @@ public class DocumentController {
     @GetMapping("/chats/{chatId}/{id}/download")
     public ResponseEntity<Resource> downloadDocumentFromChat(@PathVariable Long chatId, @PathVariable Long id) {
         Resource resource = documentService.downloadDocument(chatId, id);
+        DocumentResponseDTO document = documentService.getDocumentByChatAndId(chatId, id);
 
         return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.getFileName() + "\"")
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .body(resource);
+    }
+
+    @GetMapping("/chats/{chatId}/{id}/preview")
+    public ResponseEntity<Resource> previewDocumentFromChat(@PathVariable Long chatId, @PathVariable Long id) {
+        Resource resource = documentService.downloadDocument(chatId, id);
+        MediaType mediaType = documentService.getPreviewMediaType(chatId, id);
+        DocumentResponseDTO document = documentService.getDocumentByChatAndId(chatId, id);
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + document.getFileName() + "\"")
+            .contentType(mediaType)
             .body(resource);
     }
 
     @GetMapping("/{id}/download")
     public ResponseEntity<Resource> downloadDocument(@PathVariable Long id) {
         Resource resource = documentService.downloadDocument(id);
+        DocumentResponseDTO document = documentService.getDocumentById(id);
 
         return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.getFileName() + "\"")
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
             .body(resource);
     }
@@ -80,6 +99,15 @@ public class DocumentController {
     public ResponseEntity<Void> deleteDocumentForChat(@PathVariable Long chatId, @PathVariable Long id) {
         documentService.deleteDocumentByChatAndId(chatId, id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/chats/{chatId}/{id}")
+    public DocumentResponseDTO renameDocumentForChat(
+        @PathVariable Long chatId,
+        @PathVariable Long id,
+        @Valid @RequestBody NameUpdateRequestDTO request
+    ) {
+        return documentService.renameDocument(chatId, id, request);
     }
 
     @GetMapping("/{id}")

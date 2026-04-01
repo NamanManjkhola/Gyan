@@ -7,15 +7,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.gyan.dto.DocumentResponseDTO;
+import com.gyan.dto.NameUpdateRequestDTO;
 import com.gyan.entity.Chat;
 import com.gyan.entity.Document;
 import com.gyan.entity.User;
 import com.gyan.event.DocumentUploadedEvent;
+import com.gyan.exception.ForbiddenException;
+import com.gyan.exception.NotFoundException;
+import com.gyan.model.DocumentProcessingStatus;
 import com.gyan.producer.DocumentEventProducer;
 import com.gyan.repository.DocumentRepository;
 import com.gyan.repository.DocumentChunkRepository;
@@ -33,6 +38,7 @@ public class DocumentService {
     private final StorageService storageService;
     private final FileValidator fileValidator;
     private final DocumentEventProducer documentEventProducer;
+    private final AuditLogService auditLogService;
 
     @Value("${file.upload-dir}")
     private String uploadDir;
@@ -44,7 +50,9 @@ public class DocumentService {
             ,ChatService chatService
             ,DocumentChunkRepository documentChunkRepository
             ,SearchIndexService searchIndexService
-            ,FileValidator fileValidator, DocumentEventProducer documentEventProducer) {
+            ,FileValidator fileValidator
+            ,DocumentEventProducer documentEventProducer
+            ,AuditLogService auditLogService) {
 
         this.documentRepository = documentRepository;
         this.storageService = storageService;
@@ -54,6 +62,7 @@ public class DocumentService {
         this.searchIndexService = searchIndexService;
         this.fileValidator = fileValidator;
         this.documentEventProducer = documentEventProducer; 
+        this.auditLogService = auditLogService;
     }
 
     public DocumentResponseDTO uploadFile(Long chatId, MultipartFile file) throws IOException {
@@ -74,6 +83,11 @@ public class DocumentService {
         document.setFilePath(storedFileName);
         document.setFilePath(uploadDir + "/" + storedFileName);
         document.setUploadedAt(LocalDateTime.now());
+        document.setProcessingStatus(DocumentProcessingStatus.UPLOADED);
+        document.setProcessingError(null);
+        document.setProcessingMessage("Queued for text extraction and indexing.");
+        document.setProcessingStartedAt(null);
+        document.setProcessingCompletedAt(null);
         document.setUser(user);
         document.setChat(chat);
 
@@ -90,6 +104,7 @@ public class DocumentService {
         );
 
         documentEventProducer.publishDocumentUploaded(event);
+        auditLogService.log("document.upload", user.getEmail(), "SUCCESS", "documentId=" + saved.getId() + " chatId=" + chatId + " file=" + saved.getFilename());
 
         return mapToDTO(saved);
     }
@@ -98,26 +113,47 @@ public class DocumentService {
         return downloadDocument(null, id);
     }
 
-    public Resource downloadDocument(Long chatId, Long id) {
-
-        Document document = documentRepository  
-                    .findById(id)
-                    .orElseThrow(() -> new RuntimeException("Document Not Found"));
+    public Document getOwnedDocument(Long id) {
+        Document document = documentRepository
+            .findById(id)
+            .orElseThrow(() -> new NotFoundException("Document not found"));
 
         User user = currentUserService.getCurrentUser();
-        
-        if(!document.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("Unauthorized Access");
+
+        if (!document.getUser().getId().equals(user.getId())) {
+            throw new ForbiddenException("Unauthorized access");
         }
+
+        return document;
+    }
+
+    public Resource downloadDocument(Long chatId, Long id) {
+        Document document = getOwnedDocument(id);
 
         if (chatId != null) {
             if (document.getChat() == null || !document.getChat().getId().equals(chatId)) {
-                throw new RuntimeException("Document does not belong to this chat");
+                throw new ForbiddenException("Document does not belong to this chat");
             }
         }
         
-        
+        auditLogService.log("document.download", document.getUser().getEmail(), "SUCCESS", "documentId=" + document.getId() + " chatId=" + (document.getChat() != null ? document.getChat().getId() : "none"));
         return storageService.load(document.getStoredFileName());
+    }
+
+    public MediaType getPreviewMediaType(Long chatId, Long id) {
+        Document document = getOwnedDocument(id);
+
+        if (chatId != null && (document.getChat() == null || !document.getChat().getId().equals(chatId))) {
+            throw new ForbiddenException("Document does not belong to this chat");
+        }
+
+        auditLogService.log("document.preview", document.getUser().getEmail(), "SUCCESS", "documentId=" + document.getId() + " chatId=" + (document.getChat() != null ? document.getChat().getId() : "none"));
+
+        try {
+            return document.getFileType() != null ? MediaType.parseMediaType(document.getFileType()) : MediaType.APPLICATION_OCTET_STREAM;
+        } catch (Exception exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     private DocumentResponseDTO mapToDTO(Document document) {
@@ -132,6 +168,11 @@ public class DocumentService {
         dto.setUploadedAt(document.getUploadedAt());
         dto.setOwnerEmail(document.getUser().getEmail());
         dto.setChatId(document.getChat() != null ? document.getChat().getId() : null);
+        dto.setProcessingStatus(document.getProcessingStatus() != null ? document.getProcessingStatus().name() : null);
+        dto.setProcessingError(document.getProcessingError());
+        dto.setProcessingMessage(document.getProcessingMessage());
+        dto.setProcessingStartedAt(document.getProcessingStartedAt());
+        dto.setProcessingCompletedAt(document.getProcessingCompletedAt());
 
         return dto;
     }
@@ -156,53 +197,46 @@ public class DocumentService {
 
         Document document = documentRepository
                 .findById(id)
-                .orElseThrow(() -> new RuntimeException("Document Not Found"));
-        
-        User user = currentUserService.getCurrentUser();
-
-        if(!document.getUser().getId().equals(user.getId())){
-            throw new RuntimeException("Unauthorized Access");
-        }
-
-        return mapToDTO(document);
+                .orElseThrow(() -> new NotFoundException("Document not found"));
+        return mapToDTO(getOwnedDocument(document.getId()));
     }
 
     public DocumentResponseDTO getDocumentByChatAndId(Long chatId, Long id) {
-        Document document = documentRepository
-            .findById(id)
-            .orElseThrow(() -> new RuntimeException("Document Not Found"));
-
-        User user = currentUserService.getCurrentUser();
-
-        if (!document.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("Unauthorized Access");
-        }
+        Document document = getOwnedDocument(id);
 
         if (document.getChat() == null || !document.getChat().getId().equals(chatId)) {
-            throw new RuntimeException("Document does not belong to this chat");
+            throw new ForbiddenException("Document does not belong to this chat");
         }
 
         return mapToDTO(document);
     }
 
     @Transactional
-    public void deleteDocumentByChatAndId(Long chatId, Long id) {
-        Document document = documentRepository
-            .findById(id)
-            .orElseThrow(() -> new RuntimeException("Document Not Found"));
-
-        User user = currentUserService.getCurrentUser();
-
-        if (!document.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("Unauthorized Access");
-        }
+    public DocumentResponseDTO renameDocument(Long chatId, Long id, NameUpdateRequestDTO request) {
+        Document document = getOwnedDocument(id);
 
         if (document.getChat() == null || !document.getChat().getId().equals(chatId)) {
-            throw new RuntimeException("Document does not belong to this chat");
+            throw new ForbiddenException("Document does not belong to this chat");
+        }
+
+        document.setFilename(request.getName().trim());
+        Document savedDocument = documentRepository.save(document);
+        chatService.touch(document.getChat());
+        auditLogService.log("document.rename", document.getUser().getEmail(), "SUCCESS", "documentId=" + savedDocument.getId() + " name=" + savedDocument.getFilename());
+        return mapToDTO(savedDocument);
+    }
+
+    @Transactional
+    public void deleteDocumentByChatAndId(Long chatId, Long id) {
+        Document document = getOwnedDocument(id);
+
+        if (document.getChat() == null || !document.getChat().getId().equals(chatId)) {
+            throw new ForbiddenException("Document does not belong to this chat");
         }
 
         deleteDocumentResources(document);
         chatService.touch(document.getChat());
+        auditLogService.log("document.delete", document.getUser().getEmail(), "SUCCESS", "documentId=" + document.getId() + " chatId=" + chatId);
     }
 
     @Transactional

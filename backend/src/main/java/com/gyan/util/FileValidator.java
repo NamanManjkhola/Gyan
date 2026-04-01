@@ -20,7 +20,7 @@ public class FileValidator {
         }
 
         if (file.getSize() > properties.getMaxSize()) {
-            throw new RuntimeException("File size exceeds limit");
+            throw new RuntimeException("File size exceeds the 10 MB upload limit.");
         }
 
         if (!properties.getAllowedTypes().contains(file.getContentType())) {

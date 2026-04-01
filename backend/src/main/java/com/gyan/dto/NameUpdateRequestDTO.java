@@ -1,9 +1,11 @@
 package com.gyan.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
-public class ChatCreateRequestDTO {
-    @NotBlank(message = "Chat name cannot be blank")
+public class NameUpdateRequestDTO {
+    @NotBlank(message = "Name cannot be blank")
+    @Size(max = 120, message = "Name must be 120 characters or fewer")
     private String name;
 
     public String getName() {

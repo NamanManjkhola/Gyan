@@ -1,18 +1,24 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import {
   askQuestion,
   ChatRecord,
+  ChatMessageRecord,
   deleteChat,
   deleteDocument,
   DocumentRecord,
   downloadDocument,
   getChat,
   getChatDocuments,
+  getChatMessages,
   logout,
+  previewDocument,
+  renameChat,
+  renameDocument,
   uploadDocument
 } from '../lib/api';
+import { useNotifications } from '../components/NotificationProvider';
 
 function renderInlineFormatting(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
@@ -81,9 +87,11 @@ function renderAnswer(answer: string) {
 
 export function ChatPage() {
   const navigate = useNavigate();
+  const { notify } = useNotifications();
   const params = useParams();
   const chatId = Number(params['chatId']);
   const [chat, setChat] = useState<ChatRecord | null>(null);
+  const [messages, setMessages] = useState<ChatMessageRecord[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [question, setQuestion] = useState('');
@@ -94,8 +102,12 @@ export function ChatPage() {
   const [viewingId, setViewingId] = useState<number | null>(null);
   const [deletingDocumentId, setDeletingDocumentId] = useState<number | null>(null);
   const [deletingChat, setDeletingChat] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFileName, setPreviewFileName] = useState('');
+  const [previewContentType, setPreviewContentType] = useState('');
+  const previousStatusesRef = useRef<Map<number, string | null>>(new Map());
+  const hasLoadedStatusesRef = useRef(false);
 
   useEffect(() => {
     if (!Number.isFinite(chatId)) {
@@ -108,12 +120,14 @@ export function ChatPage() {
       setErrorMessage('');
 
       try {
-        const [chatResponse, documentsResponse] = await Promise.all([
+        const [chatResponse, documentsResponse, messagesResponse] = await Promise.all([
           getChat(chatId),
-          getChatDocuments(chatId)
+          getChatDocuments(chatId),
+          getChatMessages(chatId)
         ]);
         setChat(chatResponse);
         setDocuments(documentsResponse);
+        setMessages(messagesResponse);
       } catch (err) {
         setErrorMessage(err instanceof Error ? err.message : 'Unable to load chat.');
       } finally {
@@ -126,13 +140,73 @@ export function ChatPage() {
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     setSelectedFile(event.target.files?.[0] ?? null);
-    setStatusMessage('');
   }
 
   async function refreshDocuments() {
     const response = await getChatDocuments(chatId);
     setDocuments(response);
   }
+
+  async function refreshMessages() {
+    const response = await getChatMessages(chatId);
+    setMessages(response);
+  }
+
+  useEffect(() => {
+    if (!documents.some((document) => document.processingStatus === 'UPLOADED' || document.processingStatus === 'PROCESSING')) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshDocuments();
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [documents]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    if (loadingChat) {
+      return;
+    }
+
+    const previousStatuses = previousStatusesRef.current;
+
+    if (!hasLoadedStatusesRef.current) {
+      hasLoadedStatusesRef.current = true;
+      previousStatusesRef.current = new Map(documents.map((document) => [document.id, document.processingStatus]));
+      return;
+    }
+
+    for (const document of documents) {
+      const previousStatus = previousStatuses.get(document.id);
+      const nextStatus = document.processingStatus;
+
+      if (previousStatus && previousStatus !== nextStatus) {
+        if (nextStatus === 'PROCESSING') {
+          notify(`${document.fileName} is now being processed.`, 'info');
+        } else if (nextStatus === 'READY') {
+          notify(`${document.fileName} is ready for chat and search.`, 'success');
+        } else if (nextStatus === 'FAILED') {
+          notify(
+            document.processingError
+              ? `${document.fileName} failed to process: ${document.processingError}`
+              : `${document.fileName} failed to process.`,
+            'error'
+          );
+        }
+      }
+    }
+
+    previousStatusesRef.current = new Map(documents.map((document) => [document.id, document.processingStatus]));
+  }, [documents, loadingChat, notify]);
 
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -144,12 +218,11 @@ export function ChatPage() {
 
     setUploading(true);
     setErrorMessage('');
-    setStatusMessage('');
 
     try {
       await uploadDocument(chatId, selectedFile);
       setSelectedFile(null);
-      setStatusMessage('Document uploaded successfully.');
+      notify('Document uploaded. Processing has started in the background.', 'info');
       await refreshDocuments();
       setChat((current) =>
         current
@@ -157,7 +230,9 @@ export function ChatPage() {
           : current
       );
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Upload failed.');
+      const message = err instanceof Error ? err.message : 'Upload failed.';
+      setErrorMessage(message);
+      notify(message, 'error');
     } finally {
       setUploading(false);
     }
@@ -177,8 +252,11 @@ export function ChatPage() {
     try {
       const response = await askQuestion(chatId, question.trim());
       setAnswer(response.answer);
+      await refreshMessages();
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Unable to get an answer.');
+      const message = err instanceof Error ? err.message : 'Unable to get an answer.';
+      setErrorMessage(message);
+      notify(message, 'error');
     } finally {
       setAsking(false);
     }
@@ -187,13 +265,36 @@ export function ChatPage() {
   async function handleDownload(documentId: number) {
     setViewingId(documentId);
     setErrorMessage('');
-    setStatusMessage('');
 
     try {
       await downloadDocument(chatId, documentId);
-      setStatusMessage('Download started.');
+      notify('Download started.', 'success');
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Unable to download document.');
+      const message = err instanceof Error ? err.message : 'Unable to download document.';
+      setErrorMessage(message);
+      notify(message, 'error');
+    } finally {
+      setViewingId(null);
+    }
+  }
+
+  async function handlePreview(document: DocumentRecord) {
+    setViewingId(document.id);
+    setErrorMessage('');
+
+    try {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+
+      const preview = await previewDocument(chatId, document.id);
+      setPreviewUrl(preview.url);
+      setPreviewContentType(preview.contentType);
+      setPreviewFileName(document.fileName);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to preview document.';
+      setErrorMessage(message);
+      notify(message, 'error');
     } finally {
       setViewingId(null);
     }
@@ -208,7 +309,6 @@ export function ChatPage() {
 
     setDeletingDocumentId(document.id);
     setErrorMessage('');
-    setStatusMessage('');
 
     try {
       await deleteDocument(chatId, document.id);
@@ -222,11 +322,31 @@ export function ChatPage() {
             }
           : current
       );
-      setStatusMessage('Document deleted successfully.');
+      notify('Document deleted successfully.', 'success');
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Unable to delete document.');
+      const message = err instanceof Error ? err.message : 'Unable to delete document.';
+      setErrorMessage(message);
+      notify(message, 'error');
     } finally {
       setDeletingDocumentId(null);
+    }
+  }
+
+  async function handleRenameDocument(document: DocumentRecord) {
+    const nextName = window.prompt('Enter a new document name.', document.fileName)?.trim();
+
+    if (!nextName || nextName === document.fileName) {
+      return;
+    }
+
+    try {
+      const updatedDocument = await renameDocument(chatId, document.id, nextName);
+      setDocuments((current) => current.map((item) => (item.id === document.id ? updatedDocument : item)));
+      notify('Document renamed successfully.', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to rename document.';
+      setErrorMessage(message);
+      notify(message, 'error');
     }
   }
 
@@ -243,14 +363,38 @@ export function ChatPage() {
 
     setDeletingChat(true);
     setErrorMessage('');
-    setStatusMessage('');
 
     try {
       await deleteChat(chat.id);
+      notify('Chat deleted successfully.', 'success');
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Unable to delete chat.');
+      const message = err instanceof Error ? err.message : 'Unable to delete chat.';
+      setErrorMessage(message);
+      notify(message, 'error');
       setDeletingChat(false);
+    }
+  }
+
+  async function handleRenameChat() {
+    if (!chat) {
+      return;
+    }
+
+    const nextName = window.prompt('Enter a new name for this workspace.', chat.name)?.trim();
+
+    if (!nextName || nextName === chat.name) {
+      return;
+    }
+
+    try {
+      const updatedChat = await renameChat(chat.id, nextName);
+      setChat(updatedChat);
+      notify('Workspace renamed successfully.', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to rename workspace.';
+      setErrorMessage(message);
+      notify(message, 'error');
     }
   }
 
@@ -288,8 +432,11 @@ export function ChatPage() {
 
         <div className="hero-actions">
           <Link className="ghost-button" to="/dashboard">
-            Back to documents
+              Back to workspace
           </Link>
+          <button className="ghost-button" type="button" onClick={() => void handleRenameChat()} disabled={deletingChat}>
+            Rename workspace
+          </button>
           <button className="ghost-button danger-button" type="button" onClick={handleDeleteChat} disabled={deletingChat}>
             {deletingChat ? 'Deleting chat...' : 'Delete chat'}
           </button>
@@ -302,12 +449,6 @@ export function ChatPage() {
       {errorMessage ? (
         <section className="status-strip">
           <p className="status error">{errorMessage}</p>
-        </section>
-      ) : null}
-
-      {statusMessage ? (
-        <section className="status-strip">
-          <p className="status success">{statusMessage}</p>
         </section>
       ) : null}
 
@@ -364,6 +505,35 @@ export function ChatPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
+            <p className="card-kicker">History</p>
+            <h2>Conversation</h2>
+          </div>
+          <button className="ghost-button" type="button" onClick={() => void refreshMessages()}>
+            Refresh
+          </button>
+        </div>
+
+        {messages.length === 0 ? (
+          <p className="empty-state">No messages yet. Ask your first question to start the chat history.</p>
+        ) : (
+          <div className="message-list">
+            {messages.map((message) => (
+              <article className={`message-card ${message.role === 'USER' ? 'user-message' : 'assistant-message'}`} key={message.id}>
+                <p className="card-kicker">{message.role === 'USER' ? 'You' : 'Gyan'}</p>
+                {message.role === 'ASSISTANT' ? (
+                  <div className="answer-content">{renderAnswer(message.content)}</div>
+                ) : (
+                  <p className="answer-paragraph">{message.content}</p>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
             <p className="card-kicker">Documents</p>
             <h2>Files in this chat</h2>
           </div>
@@ -385,9 +555,23 @@ export function ChatPage() {
                 <div>
                   <h3>{document.fileName}</h3>
                   <p>{formatFileSize(document.fileSize)}</p>
+                  <p className={`document-status status-${(document.processingStatus ?? 'unknown').toLowerCase()}`}>
+                    {document.processingStatus === 'FAILED'
+                      ? `Failed${document.processingError ? `: ${document.processingError}` : ''}`
+                      : document.processingStatus ?? 'Unknown'}
+                  </p>
+                  {document.processingMessage ? <p>{document.processingMessage}</p> : null}
                 </div>
 
                 <div className="row-actions">
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => void handlePreview(document)}
+                    disabled={viewingId === document.id || deletingDocumentId === document.id}
+                  >
+                    {viewingId === document.id ? 'Opening...' : 'Preview'}
+                  </button>
                   <button
                     className="ghost-button"
                     type="button"
@@ -395,6 +579,14 @@ export function ChatPage() {
                     disabled={viewingId === document.id || deletingDocumentId === document.id}
                   >
                     {viewingId === document.id ? 'Downloading...' : 'Download'}
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => void handleRenameDocument(document)}
+                    disabled={deletingDocumentId === document.id || viewingId === document.id}
+                  >
+                    Rename
                   </button>
                   <button
                     className="ghost-button danger-button"
@@ -410,6 +602,44 @@ export function ChatPage() {
           </div>
         ) : null}
       </section>
+
+      {previewUrl ? (
+        <section className="preview-overlay" role="dialog" aria-modal="true">
+          <div className="preview-panel">
+            <div className="panel-header">
+              <div>
+                <p className="card-kicker">Preview</p>
+                <h2>{previewFileName}</h2>
+              </div>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  window.URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                  setPreviewContentType('');
+                  setPreviewFileName('');
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            {previewContentType.startsWith('text/') ? (
+              <iframe className="preview-frame" src={previewUrl} title={previewFileName} />
+            ) : previewContentType.includes('pdf') ? (
+              <iframe className="preview-frame" src={previewUrl} title={previewFileName} />
+            ) : (
+              <div className="preview-fallback">
+                <p className="empty-state">
+                  This file type may not render inline in the browser. You can still download it from the document list.
+                </p>
+                <iframe className="preview-frame" src={previewUrl} title={previewFileName} />
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

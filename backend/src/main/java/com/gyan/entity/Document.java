@@ -2,8 +2,12 @@ package com.gyan.entity;
 
 import java.time.LocalDateTime;
 
+import com.gyan.model.DocumentProcessingStatus;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -35,6 +39,18 @@ public class Document {
     private Long fileSize;
     private String filePath;
     private LocalDateTime uploadedAt;
+
+    @Enumerated(EnumType.STRING)
+    private DocumentProcessingStatus processingStatus;
+
+    @Column(columnDefinition = "TEXT")
+    private String processingError;
+
+    @Column(columnDefinition = "TEXT")
+    private String processingMessage;
+
+    private LocalDateTime processingStartedAt;
+    private LocalDateTime processingCompletedAt;
 
     @Column(columnDefinition = "TEXT")
     private String extractedText;
@@ -71,6 +87,26 @@ public class Document {
         return uploadedAt;
     }
 
+    public DocumentProcessingStatus getProcessingStatus() {
+        return processingStatus;
+    }
+
+    public String getProcessingError() {
+        return processingError;
+    }
+
+    public String getProcessingMessage() {
+        return processingMessage;
+    }
+
+    public LocalDateTime getProcessingStartedAt() {
+        return processingStartedAt;
+    }
+
+    public LocalDateTime getProcessingCompletedAt() {
+        return processingCompletedAt;
+    }
+
     public void setFilename(String filename) {
         this.filename = filename;
     }
@@ -93,6 +129,26 @@ public class Document {
 
     public void setUploadedAt(LocalDateTime uploadedAt) {
         this.uploadedAt = uploadedAt;
+    }
+
+    public void setProcessingStatus(DocumentProcessingStatus processingStatus) {
+        this.processingStatus = processingStatus;
+    }
+
+    public void setProcessingError(String processingError) {
+        this.processingError = processingError;
+    }
+
+    public void setProcessingMessage(String processingMessage) {
+        this.processingMessage = processingMessage;
+    }
+
+    public void setProcessingStartedAt(LocalDateTime processingStartedAt) {
+        this.processingStartedAt = processingStartedAt;
+    }
+
+    public void setProcessingCompletedAt(LocalDateTime processingCompletedAt) {
+        this.processingCompletedAt = processingCompletedAt;
     }
 
     public User getUser() {

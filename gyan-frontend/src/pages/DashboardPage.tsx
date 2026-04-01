@@ -1,15 +1,16 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChatRecord, createChat, deleteChat, getChats, logout } from '../lib/api';
+import { ChatRecord, createChat, deleteChat, getChats, logout, renameChat } from '../lib/api';
+import { useNotifications } from '../components/NotificationProvider';
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { notify } = useNotifications();
   const [chats, setChats] = useState<ChatRecord[]>([]);
   const [chatName, setChatName] = useState('');
   const [loadingChats, setLoadingChats] = useState(true);
   const [creatingChat, setCreatingChat] = useState(false);
   const [deletingChatId, setDeletingChatId] = useState<number | null>(null);
-  const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
   async function loadChats() {
@@ -40,16 +41,17 @@ export function DashboardPage() {
 
     setCreatingChat(true);
     setErrorMessage('');
-    setStatusMessage('');
 
     try {
       const chat = await createChat(chatName.trim());
-      setStatusMessage('Chat created successfully.');
+      notify('Chat created successfully.', 'success');
       setChatName('');
       await loadChats();
       navigate(`/chat/${chat.id}`);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Unable to create chat.');
+      const message = err instanceof Error ? err.message : 'Unable to create chat.';
+      setErrorMessage(message);
+      notify(message, 'error');
     } finally {
       setCreatingChat(false);
     }
@@ -69,16 +71,35 @@ export function DashboardPage() {
 
     setDeletingChatId(chat.id);
     setErrorMessage('');
-    setStatusMessage('');
 
     try {
       await deleteChat(chat.id);
       setChats((current) => current.filter((item) => item.id !== chat.id));
-      setStatusMessage('Chat deleted successfully.');
+      notify('Chat deleted successfully.', 'success');
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Unable to delete chat.');
+      const message = err instanceof Error ? err.message : 'Unable to delete chat.';
+      setErrorMessage(message);
+      notify(message, 'error');
     } finally {
       setDeletingChatId(null);
+    }
+  }
+
+  async function handleRenameChat(chat: ChatRecord) {
+    const nextName = window.prompt('Enter a new name for this workspace.', chat.name)?.trim();
+
+    if (!nextName || nextName === chat.name) {
+      return;
+    }
+
+    try {
+      const updatedChat = await renameChat(chat.id, nextName);
+      setChats((current) => current.map((item) => (item.id === chat.id ? updatedChat : item)));
+      notify('Workspace renamed successfully.', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to rename workspace.';
+      setErrorMessage(message);
+      notify(message, 'error');
     }
   }
 
@@ -132,10 +153,9 @@ export function DashboardPage() {
         </form>
       </section>
 
-      {(statusMessage || errorMessage) && (
+      {errorMessage && (
         <section className="status-strip">
-          {statusMessage ? <p className="status success">{statusMessage}</p> : null}
-          {errorMessage ? <p className="status error">{errorMessage}</p> : null}
+          <p className="status error">{errorMessage}</p>
         </section>
       )}
 
@@ -172,6 +192,9 @@ export function DashboardPage() {
                   <Link className="ghost-button" to={`/chat/${chat.id}`}>
                     Open chat
                   </Link>
+                  <button className="ghost-button" type="button" onClick={() => void handleRenameChat(chat)}>
+                    Rename
+                  </button>
                   <button
                     className="ghost-button danger-button"
                     type="button"

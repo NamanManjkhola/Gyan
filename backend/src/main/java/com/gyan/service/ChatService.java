@@ -8,9 +8,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.gyan.dto.ChatCreateRequestDTO;
 import com.gyan.dto.ChatResponseDTO;
+import com.gyan.dto.NameUpdateRequestDTO;
 import com.gyan.entity.Chat;
 import com.gyan.entity.Document;
 import com.gyan.entity.User;
+import com.gyan.exception.BadRequestException;
+import com.gyan.exception.NotFoundException;
 import com.gyan.repository.ChatRepository;
 import com.gyan.repository.DocumentChunkRepository;
 import com.gyan.repository.DocumentRepository;
@@ -27,6 +30,7 @@ public class ChatService {
     private final SearchIndexService searchIndexService;
     private final StorageService storageService;
     private final CurrentUserService currentUserService;
+    private final AuditLogService auditLogService;
 
     public ChatService(
         ChatRepository chatRepository,
@@ -34,7 +38,8 @@ public class ChatService {
         DocumentChunkRepository documentChunkRepository,
         SearchIndexService searchIndexService,
         StorageService storageService,
-        CurrentUserService currentUserService
+        CurrentUserService currentUserService,
+        AuditLogService auditLogService
     ) {
         this.chatRepository = chatRepository;
         this.documentRepository = documentRepository;
@@ -42,6 +47,7 @@ public class ChatService {
         this.searchIndexService = searchIndexService;
         this.storageService = storageService;
         this.currentUserService = currentUserService;
+        this.auditLogService = auditLogService;
     }
 
     public List<ChatResponseDTO> getCurrentUserChats() {
@@ -57,7 +63,7 @@ public class ChatService {
         User user = currentUserService.getCurrentUser();
 
         if (chatRepository.countByUser(user) >= MAX_CHATS_PER_USER) {
-            throw new IllegalStateException("You can create at most 5 chats.");
+            throw new BadRequestException("You can create at most 5 chats.");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -68,13 +74,15 @@ public class ChatService {
         chat.setUpdatedAt(now);
         chat.setUser(user);
 
-        return mapToDTO(chatRepository.save(chat));
+        Chat savedChat = chatRepository.save(chat);
+        auditLogService.log("chat.create", user.getEmail(), "SUCCESS", "chatId=" + savedChat.getId() + " name=" + savedChat.getName());
+        return mapToDTO(savedChat);
     }
 
     public Chat getOwnedChat(Long chatId) {
         User user = currentUserService.getCurrentUser();
         return chatRepository.findByIdAndUser(chatId, user)
-            .orElseThrow(() -> new RuntimeException("Chat not found"));
+            .orElseThrow(() -> new NotFoundException("Chat not found"));
     }
 
     public ChatResponseDTO getChat(Long chatId) {
@@ -84,6 +92,16 @@ public class ChatService {
     public void touch(Chat chat) {
         chat.setUpdatedAt(LocalDateTime.now());
         chatRepository.save(chat);
+    }
+
+    @Transactional
+    public ChatResponseDTO renameChat(Long chatId, NameUpdateRequestDTO request) {
+        Chat chat = getOwnedChat(chatId);
+        chat.setName(request.getName().trim());
+        chat.setUpdatedAt(LocalDateTime.now());
+        Chat savedChat = chatRepository.save(chat);
+        auditLogService.log("chat.rename", chat.getUser().getEmail(), "SUCCESS", "chatId=" + savedChat.getId() + " name=" + savedChat.getName());
+        return mapToDTO(savedChat);
     }
 
     @Transactional
@@ -102,6 +120,7 @@ public class ChatService {
         }
 
         chatRepository.delete(chat);
+        auditLogService.log("chat.delete", chat.getUser().getEmail(), "SUCCESS", "chatId=" + chat.getId() + " name=" + chat.getName());
     }
 
     private ChatResponseDTO mapToDTO(Chat chat) {

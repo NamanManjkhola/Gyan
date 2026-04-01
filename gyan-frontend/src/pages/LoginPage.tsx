@@ -1,11 +1,13 @@
 import { FormEvent, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useNotifications } from '../components/NotificationProvider';
 import { login } from '../lib/api';
 import { saveTokens } from '../lib/auth';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { notify } = useNotifications();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -21,9 +23,12 @@ export function LoginPage() {
     try {
       const response = await login(email, password);
       saveTokens(response.accessToken);
+      notify('Logged in successfully.', 'success');
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to sign in right now.');
+      const message = err instanceof Error ? err.message : 'Unable to sign in right now.';
+      setError(message);
+      notify(message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -77,6 +82,9 @@ export function LoginPage() {
 
           <p className="auth-link-row">
             New here? <Link to="/register">Create an account</Link>
+          </p>
+          <p className="auth-link-row">
+            <Link to="/">Back to home</Link>
           </p>
         </form>
       </section>

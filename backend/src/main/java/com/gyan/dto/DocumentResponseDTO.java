@@ -11,6 +11,11 @@ public class DocumentResponseDTO {
     private LocalDateTime uploadedAt;
     private String ownerEmail;
     private Long chatId;
+    private String processingStatus;
+    private String processingError;
+    private String processingMessage;
+    private LocalDateTime processingStartedAt;
+    private LocalDateTime processingCompletedAt;
 
 
     public void setId(Long id) {
@@ -61,6 +66,36 @@ public class DocumentResponseDTO {
     }
     public void setChatId(Long chatId) {
         this.chatId = chatId;
+    }
+    public String getProcessingStatus() {
+        return processingStatus;
+    }
+    public void setProcessingStatus(String processingStatus) {
+        this.processingStatus = processingStatus;
+    }
+    public String getProcessingError() {
+        return processingError;
+    }
+    public void setProcessingError(String processingError) {
+        this.processingError = processingError;
+    }
+    public String getProcessingMessage() {
+        return processingMessage;
+    }
+    public void setProcessingMessage(String processingMessage) {
+        this.processingMessage = processingMessage;
+    }
+    public LocalDateTime getProcessingStartedAt() {
+        return processingStartedAt;
+    }
+    public void setProcessingStartedAt(LocalDateTime processingStartedAt) {
+        this.processingStartedAt = processingStartedAt;
+    }
+    public LocalDateTime getProcessingCompletedAt() {
+        return processingCompletedAt;
+    }
+    public void setProcessingCompletedAt(LocalDateTime processingCompletedAt) {
+        this.processingCompletedAt = processingCompletedAt;
     }
 
 }
