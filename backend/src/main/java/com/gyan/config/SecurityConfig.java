@@ -1,9 +1,12 @@
 package com.gyan.config;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -21,6 +24,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @Configuration  
 @EnableMethodSecurity
 public class SecurityConfig {
+    @Value("${app.cors.allowed-origins:http://localhost:4200,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173}")
+    private String allowedOrigins;
     
     @Bean
     public BCryptPasswordEncoder passwordEncoder() {
@@ -59,12 +64,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of(
-            "http://localhost:4200",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:4173"
-        ));
+        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+            .map(String::trim)
+            .filter(origin -> !origin.isBlank())
+            .collect(Collectors.toList()));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
