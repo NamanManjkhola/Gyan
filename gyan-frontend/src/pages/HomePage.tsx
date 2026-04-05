@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { AppHeader } from '../components/AppHeader';
+import { getAccessToken } from '../lib/auth';
 
 const highlights = [
   {
@@ -22,8 +24,41 @@ const steps = [
 ];
 
 export function HomePage() {
+  const isAuthenticated = Boolean(getAccessToken());
+
   return (
     <main className="home-shell">
+      <AppHeader
+        links={
+          isAuthenticated
+            ? [
+                { label: 'Home', to: '/' },
+                { label: 'Workspace', to: '/dashboard' }
+              ]
+            : [
+                { label: 'Features', to: '/#features' },
+                { label: 'Workflow', to: '/#workflow' },
+                { label: 'Login', to: '/login' }
+              ]
+        }
+        actions={
+          isAuthenticated ? (
+            <Link className="primary-button" to="/dashboard">
+              Open workspace
+            </Link>
+          ) : (
+            <>
+              <Link className="ghost-button" to="/login">
+                Login
+              </Link>
+              <Link className="primary-button" to="/register">
+                Get started
+              </Link>
+            </>
+          )
+        }
+      />
+
       <section className="home-hero">
         <div className="home-hero-copy">
           <p className="eyebrow">Document Intelligence, Reframed</p>
@@ -34,12 +69,25 @@ export function HomePage() {
           </p>
 
           <div className="home-actions">
-            <Link className="primary-button" to="/login">
-              Login
-            </Link>
-            <Link className="ghost-button" to="/register">
-              Create account
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link className="primary-button" to="/dashboard">
+                  Open workspace
+                </Link>
+                <a className="ghost-button" href="#features">
+                  Explore features
+                </a>
+              </>
+            ) : (
+              <>
+                <Link className="primary-button" to="/login">
+                  Login
+                </Link>
+                <Link className="ghost-button" to="/register">
+                  Create account
+                </Link>
+              </>
+            )}
           </div>
 
           <div className="home-stats">
@@ -94,7 +142,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="home-section">
+      <section className="home-section" id="features">
         <div className="section-heading">
           <p className="card-kicker">Why Gyan</p>
           <h2>Built for focused document conversations</h2>
@@ -110,7 +158,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="home-section home-section-split">
+      <section className="home-section home-section-split" id="workflow">
         <article className="journey-card">
           <p className="card-kicker">How it works</p>
           <h2>Simple workflow, cleaner answers.</h2>
@@ -129,12 +177,20 @@ export function HomePage() {
             use every day.
           </p>
           <div className="home-actions">
-            <Link className="primary-button" to="/register">
-              Get started
-            </Link>
-            <Link className="ghost-button" to="/login">
-              I already have an account
-            </Link>
+            {isAuthenticated ? (
+              <Link className="primary-button" to="/dashboard">
+                Return to workspace
+              </Link>
+            ) : (
+              <>
+                <Link className="primary-button" to="/register">
+                  Get started
+                </Link>
+                <Link className="ghost-button" to="/login">
+                  I already have an account
+                </Link>
+              </>
+            )}
           </div>
         </article>
       </section>

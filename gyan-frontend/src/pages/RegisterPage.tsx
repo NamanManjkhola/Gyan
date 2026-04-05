@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AppHeader } from '../components/AppHeader';
 import { useNotifications } from '../components/NotificationProvider';
 import { register } from '../lib/api';
 
@@ -49,6 +50,17 @@ export function RegisterPage() {
 
   return (
     <main className="auth-shell">
+      <AppHeader
+        links={[
+          { label: 'Home', to: '/' },
+          { label: 'Login', to: '/login' }
+        ]}
+        actions={
+          <Link className="primary-button" to="/login">
+            Login
+          </Link>
+        }
+      />
       <section className="auth-panel">
         <div className="auth-copy">
           <p className="eyebrow">Knowledge Workspace</p>

@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AppHeader } from '../components/AppHeader';
 import { useNotifications } from '../components/NotificationProvider';
 import { login } from '../lib/api';
 import { saveTokens } from '../lib/auth';
@@ -36,6 +37,17 @@ export function LoginPage() {
 
   return (
     <main className="auth-shell">
+      <AppHeader
+        links={[
+          { label: 'Home', to: '/' },
+          { label: 'Register', to: '/register' }
+        ]}
+        actions={
+          <Link className="primary-button" to="/register">
+            Create account
+          </Link>
+        }
+      />
       <section className="auth-panel">
         <div className="auth-copy">
           <p className="eyebrow">Knowledge Workspace</p>

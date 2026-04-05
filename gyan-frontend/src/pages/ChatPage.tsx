@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
+import { AppHeader } from '../components/AppHeader';
 import {
   askQuestion,
   ChatRecord,
@@ -421,6 +422,25 @@ export function ChatPage() {
 
   return (
     <main className="dashboard-shell">
+      <AppHeader
+        links={[
+          { label: 'Home', to: '/' },
+          { label: 'Workspace', to: '/dashboard' },
+          { label: 'Chat', to: `/chat/${chatId}` }
+        ]}
+        currentLabel={chat?.name ?? 'Chat'}
+        actions={
+          <>
+            <Link className="ghost-button" to="/dashboard">
+              Back to workspace
+            </Link>
+            <button className="ghost-button" type="button" onClick={handleLogout}>
+              Logout
+            </button>
+          </>
+        }
+      />
+
       <header className="hero">
         <div>
           <p className="eyebrow">Document Chat</p>
@@ -431,17 +451,11 @@ export function ChatPage() {
         </div>
 
         <div className="hero-actions">
-          <Link className="ghost-button" to="/dashboard">
-              Back to workspace
-          </Link>
           <button className="ghost-button" type="button" onClick={() => void handleRenameChat()} disabled={deletingChat}>
             Rename workspace
           </button>
           <button className="ghost-button danger-button" type="button" onClick={handleDeleteChat} disabled={deletingChat}>
             {deletingChat ? 'Deleting chat...' : 'Delete chat'}
-          </button>
-          <button className="ghost-button" type="button" onClick={handleLogout}>
-            Logout
           </button>
         </div>
       </header>

@@ -14,7 +14,7 @@ function isAuthenticated() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <HomePage />} />
+      <Route path="/" element={<HomePage />} />
       <Route path="/login" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
       <Route

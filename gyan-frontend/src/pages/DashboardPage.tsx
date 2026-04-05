@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AppHeader } from '../components/AppHeader';
 import { ChatRecord, createChat, deleteChat, getChats, logout, renameChat } from '../lib/api';
 import { useNotifications } from '../components/NotificationProvider';
 
@@ -109,6 +110,18 @@ export function DashboardPage() {
 
   return (
     <main className="dashboard-shell">
+      <AppHeader
+        links={[
+          { label: 'Home', to: '/' },
+          { label: 'Workspace', to: '/dashboard' }
+        ]}
+        actions={
+          <button className="ghost-button" type="button" onClick={handleLogout}>
+            Logout
+          </button>
+        }
+      />
+
       <header className="hero">
         <div>
           <p className="eyebrow">Chat Workspace</p>
@@ -118,11 +131,7 @@ export function DashboardPage() {
           </p>
         </div>
 
-        <div className="hero-actions">
-          <button className="ghost-button" type="button" onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
+        <div className="hero-actions" />
       </header>
 
       <section className="dashboard-grid">
