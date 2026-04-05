@@ -1,10 +1,13 @@
 package com.gyan.service;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
@@ -137,7 +140,7 @@ public class DocumentService {
         }
         
         auditLogService.log("document.download", document.getUser().getEmail(), "SUCCESS", "documentId=" + document.getId() + " chatId=" + (document.getChat() != null ? document.getChat().getId() : "none"));
-        return storageService.load(document.getStoredFileName());
+        return resolveDocumentResource(document);
     }
 
     public MediaType getPreviewMediaType(Long chatId, Long id) {
@@ -249,5 +252,26 @@ public class DocumentService {
         }
 
         documentRepository.delete(document);
+    }
+
+    private Resource resolveDocumentResource(Document document) {
+        if (document.getStoredFileName() != null && !document.getStoredFileName().isBlank()) {
+            return storageService.load(document.getStoredFileName());
+        }
+
+        if (document.getFilePath() != null && !document.getFilePath().isBlank()) {
+            try {
+                Path filePath = Paths.get(document.getFilePath()).toAbsolutePath().normalize();
+                Resource resource = new UrlResource(filePath.toUri());
+
+                if (resource.exists() && resource.isReadable()) {
+                    return resource;
+                }
+            } catch (Exception exception) {
+                throw new NotFoundException("File not found");
+            }
+        }
+
+        throw new NotFoundException("File not found");
     }
 }

@@ -16,7 +16,6 @@ import {
   logout,
   previewDocument,
   renameChat,
-  renameDocument,
   uploadDocument
 } from '../lib/api';
 import { useNotifications } from '../components/NotificationProvider';
@@ -333,24 +332,6 @@ export function ChatPage() {
     }
   }
 
-  async function handleRenameDocument(document: DocumentRecord) {
-    const nextName = window.prompt('Enter a new document name.', document.fileName)?.trim();
-
-    if (!nextName || nextName === document.fileName) {
-      return;
-    }
-
-    try {
-      const updatedDocument = await renameDocument(chatId, document.id, nextName);
-      setDocuments((current) => current.map((item) => (item.id === document.id ? updatedDocument : item)));
-      notify('Document renamed successfully.', 'success');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unable to rename document.';
-      setErrorMessage(message);
-      notify(message, 'error');
-    }
-  }
-
   async function handleDeleteChat() {
     if (!chat) {
       return;
@@ -593,14 +574,6 @@ export function ChatPage() {
                     disabled={viewingId === document.id || deletingDocumentId === document.id}
                   >
                     {viewingId === document.id ? 'Downloading...' : 'Download'}
-                  </button>
-                  <button
-                    className="ghost-button"
-                    type="button"
-                    onClick={() => void handleRenameDocument(document)}
-                    disabled={deletingDocumentId === document.id || viewingId === document.id}
-                  >
-                    Rename
                   </button>
                   <button
                     className="ghost-button danger-button"

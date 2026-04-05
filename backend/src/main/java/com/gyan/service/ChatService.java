@@ -14,6 +14,7 @@ import com.gyan.entity.Document;
 import com.gyan.entity.User;
 import com.gyan.exception.BadRequestException;
 import com.gyan.exception.NotFoundException;
+import com.gyan.repository.ChatMessageRepository;
 import com.gyan.repository.ChatRepository;
 import com.gyan.repository.DocumentChunkRepository;
 import com.gyan.repository.DocumentRepository;
@@ -25,6 +26,7 @@ public class ChatService {
     private static final long MAX_CHATS_PER_USER = 5;
 
     private final ChatRepository chatRepository;
+    private final ChatMessageRepository chatMessageRepository;
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
     private final SearchIndexService searchIndexService;
@@ -34,6 +36,7 @@ public class ChatService {
 
     public ChatService(
         ChatRepository chatRepository,
+        ChatMessageRepository chatMessageRepository,
         DocumentRepository documentRepository,
         DocumentChunkRepository documentChunkRepository,
         SearchIndexService searchIndexService,
@@ -42,6 +45,7 @@ public class ChatService {
         AuditLogService auditLogService
     ) {
         this.chatRepository = chatRepository;
+        this.chatMessageRepository = chatMessageRepository;
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.searchIndexService = searchIndexService;
@@ -107,6 +111,8 @@ public class ChatService {
     @Transactional
     public void deleteChat(Long chatId) {
         Chat chat = getOwnedChat(chatId);
+
+        chatMessageRepository.deleteByChat(chat);
 
         for (Document document : documentRepository.findAllByChat(chat)) {
             documentChunkRepository.deleteByDocument(document);
