@@ -249,6 +249,13 @@ public class DocumentService {
 
         if (document.getStoredFileName() != null && !document.getStoredFileName().isBlank()) {
             storageService.delete(document.getStoredFileName());
+        } else if (document.getFilePath() != null && !document.getFilePath().isBlank()) {
+            try {
+                Path filePath = Paths.get(document.getFilePath()).toAbsolutePath().normalize();
+                java.nio.file.Files.deleteIfExists(filePath);
+            } catch (IOException exception) {
+                throw new RuntimeException("Unable to delete file");
+            }
         }
 
         documentRepository.delete(document);

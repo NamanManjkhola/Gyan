@@ -16,4 +16,6 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     long countByChat(Chat chat);
 
     java.util.List<Document> findAllByChat(Chat chat);
+
+    void deleteByChat(Chat chat);
 }

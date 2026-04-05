@@ -11,4 +11,6 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
     List<DocumentChunk> findByDocument(Document document);
 
     void deleteByDocument(Document document);
+
+    void deleteByDocumentIn(List<Document> documents);
 }

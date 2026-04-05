@@ -2,6 +2,9 @@ package com.gyan.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -111,22 +114,40 @@ public class ChatService {
     @Transactional
     public void deleteChat(Long chatId) {
         Chat chat = getOwnedChat(chatId);
+        List<Document> documents = documentRepository.findAllByChat(chat);
 
         chatMessageRepository.deleteByChat(chat);
 
-        for (Document document : documentRepository.findAllByChat(chat)) {
-            documentChunkRepository.deleteByDocument(document);
+        for (Document document : documents) {
             searchIndexService.deleteDocument(document.getId());
+            deleteDocumentFile(document);
+        }
 
-            if (document.getStoredFileName() != null && !document.getStoredFileName().isBlank()) {
-                storageService.delete(document.getStoredFileName());
-            }
-
-            documentRepository.delete(document);
+        if (!documents.isEmpty()) {
+            documentChunkRepository.deleteByDocumentIn(documents);
+            documentRepository.deleteByChat(chat);
         }
 
         chatRepository.delete(chat);
         auditLogService.log("chat.delete", chat.getUser().getEmail(), "SUCCESS", "chatId=" + chat.getId() + " name=" + chat.getName());
+    }
+
+    private void deleteDocumentFile(Document document) {
+        if (document.getStoredFileName() != null && !document.getStoredFileName().isBlank()) {
+            storageService.delete(document.getStoredFileName());
+            return;
+        }
+
+        if (document.getFilePath() == null || document.getFilePath().isBlank()) {
+            return;
+        }
+
+        try {
+            Path filePath = Paths.get(document.getFilePath()).toAbsolutePath().normalize();
+            Files.deleteIfExists(filePath);
+        } catch (Exception exception) {
+            throw new RuntimeException("Unable to delete file");
+        }
     }
 
     private ChatResponseDTO mapToDTO(Chat chat) {
